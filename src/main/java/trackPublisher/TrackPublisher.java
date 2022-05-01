@@ -26,13 +26,12 @@ import com.solacesystems.jcsmp.XMLMessageProducer;
 public class TrackPublisher {
 
 	private static final String TOPIC_PREFIX = "cag/sin/track/v1/"; // used as the topic "root"
-	private static final int APPROX_MSG_RATE_PER_SEC = 10;
 	private static volatile boolean isShutdown = false;
 
 	@SuppressWarnings("restriction")
 	public static void main(String[] args) {
-		if (args.length < 4) { // Check command line arguments
-			System.out.println("Usage: <file-path> <host:port> <message-vpn> <client-username> [password]");
+		if (args.length < 5) { // Check command line arguments
+			System.out.println("Usage: <file-path> <host:port> <message-vpn> <client-username> <password> [msg-rate]");
 			System.exit(-1);
 		}
 		String filePath = args[0];
@@ -40,8 +39,10 @@ public class TrackPublisher {
 		properties.setProperty(JCSMPProperties.HOST, args[1]); // host:port
 		properties.setProperty(JCSMPProperties.VPN_NAME, args[2]); // message-vpn
 		properties.setProperty(JCSMPProperties.USERNAME, args[3]); // client-username
-		if (args.length > 4) {
-			properties.setProperty(JCSMPProperties.PASSWORD, args[4]); // client-password
+		properties.setProperty(JCSMPProperties.PASSWORD, args[4]); // client-password
+		int msg_rate = 5;
+		if (args.length > 5) {
+			msg_rate = Integer.parseInt(args[5]);
 		}
 		properties.setProperty(JCSMPProperties.GENERATE_SEQUENCE_NUMBERS, true); // not required, but interesting
 		JCSMPChannelProperties channelProps = new JCSMPChannelProperties();
@@ -130,7 +131,7 @@ public class TrackPublisher {
 				message.reset(); // reuse this message, to avoid having to recreate it: better performance
 
 				sentCount++;
-				if (sentCount == APPROX_MSG_RATE_PER_SEC) {
+				if (sentCount == msg_rate) {
 					sentCount = 0;
 					Thread.sleep(1000);
 				}
