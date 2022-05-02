@@ -1,15 +1,13 @@
 package trackPublisher;
 
 import java.io.*;
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import javax.xml.bind.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.solacesystems.jcsmp.BytesMessage;
+import com.solacesystems.jcsmp.InvalidPropertiesException;
 import com.solacesystems.jcsmp.JCSMPChannelProperties;
 import com.solacesystems.jcsmp.JCSMPErrorResponseException;
 import com.solacesystems.jcsmp.JCSMPErrorResponseSubcodeEx;
@@ -29,7 +27,7 @@ public class TrackPublisher {
 	private static volatile boolean isShutdown = false;
 
 	@SuppressWarnings("restriction")
-	public static void main(String[] args) {
+	public static void main(String[] args) throws JCSMPException, IOException, JAXBException  {
 		if (args.length < 5) { // Check command line arguments
 			System.out.println("Usage: <file-path> <host:port> <message-vpn> <client-username> <password> [msg-rate]");
 			System.exit(-1);
@@ -51,7 +49,7 @@ public class TrackPublisher {
 		// https://docs.solace.com/Solace-PubSub-Messaging-APIs/API-Developer-Guide/Configuring-Connection-T.htm
 		properties.setProperty(JCSMPProperties.CLIENT_CHANNEL_PROPERTIES, channelProps);
 		final JCSMPSession session;
-		try {
+
 			session = JCSMPFactory.onlyInstance().createSession(properties, null, new SessionEventHandler() {
 				@Override
 				public void handleEvent(SessionEventArgs event) { // could be reconnecting, connection lost, etc.
@@ -98,6 +96,7 @@ public class TrackPublisher {
 			int sentCount = 0;
 			JAXBContext jc = JAXBContext.newInstance(TRACK.class);
 			Unmarshaller unmarshaller = jc.createUnmarshaller();
+
 			ObjectMapper mapper = new ObjectMapper();
 			
 			while (str != null && !isShutdown) {
@@ -113,10 +112,16 @@ public class TrackPublisher {
 					continue;
 				if (!s.startsWith("<TRACK>"))
 					continue;
-
+				
+				TRACK track;
+				try {
 				InputStream ins = new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8));
-				TRACK track = (TRACK) unmarshaller.unmarshal(ins);
-
+				track = (TRACK) unmarshaller.unmarshal(ins);
+				} catch(JAXBException e ) {
+					System.out.println(s);
+					continue;
+				}
+				
 				String trackType = track.tracktype;
 				BigInteger trackNumber = track.tracknumber;
 				float lat = track.latitude;
@@ -133,25 +138,12 @@ public class TrackPublisher {
 				sentCount++;
 				if (sentCount == msg_rate) {
 					sentCount = 0;
-					Thread.sleep(1000);
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						continue;
+					}
 				}
 			}
 		}
-
-		// Catch block to handle the exceptions
-		catch (IOException e) {
-
-			// Display pop up message if exceptionn occurs
-			System.out.println("Error while reading a file." + e.getMessage());
-		} catch (JAXBException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (JCSMPException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
 }
